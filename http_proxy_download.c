@@ -1,62 +1,67 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h> /* close() */
+#include <unistd.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <assert.h>
  
-int main(void)
-{
-    int sock;
-    char host[] = "182.75.45.22";
-    char port[] = "13128";
+#define MAX_LEN_MSG 500
+#define RECV_BUF 4096
+
+void make_msg(char* msg) {
+  sprintf(msg, "GET http://info.in2p3.fr/ HTTP/1.1\r\nHost: http://info.in2p3.fr/\r\nProxy-Authorization: Basic Y3NmMzAzOmNzZjMwMw==\r\n\r\n");
+}
+
+int get_socket(char *host, char *port) {
     struct addrinfo hints, *res;
-    char message[] = "GET http://info.in2p3.fr/ HTTP/1.1\r\nHost: http://info.in2p3.fr/\r\nProxy-Authorization: Basic Y3NmMzAzOmNzZjMwMw==\r\n\r\n";
-    char buf[1024];
-    int bytes_read;
-    int status;
- 
-    memset(&hints, 0, sizeof hints);
+    memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
-    status = getaddrinfo(host, port, &hints, &res);
-    if (status != 0) {
-        perror("getaddrinfo");
-        return 1;
-    }
 
-    sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-    if (sock == -1) {
-        perror("socket");
-        return 1;
-    } else {
-      printf("Socket created.\n");
-    }
+    int status = getaddrinfo(host, port, &hints, &res);
+    assert(status == 0);
+
+    int sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+    assert(sock != -1);
 
     status = connect(sock, res->ai_addr, res->ai_addrlen);
-    if (status == -1) {
-        perror("connect");
-        return 1;
-    } else {
-      printf("Connected.\n");
-    }
+    assert(status != -1);
 
     freeaddrinfo(res);
 
-    int bytes_sent = send(sock, message, strlen(message), 0);
-    printf("Bytes sent: %d. Total bytes: %lu.\n", bytes_sent, strlen(message));
+    return sock;
+}
+
+int main(int argc, char **argv)
+{
+    char *URL = argv[1];
+    char *host = argv[2];
+    char *port = argv[3];
+    char *username = argv[4];
+    char *password = argv[5];
+    char *html_filename = argv[6];
+    char *image_file = argv[7];
+
+    char *msg = calloc(MAX_LEN_MSG, sizeof(char));
+    make_msg(msg);
+
+    int sock = get_socket(host, port);
+    send(sock, msg, strlen(msg), 0);
  
+    FILE *html_file;
+    int bytes_read;
+    char buffer[RECV_BUF];
     do {
-        bytes_read = recv(sock, buf, 1024, 0);
-        if (bytes_read == -1) {
-            perror("recv");
-        }
-        else {
-            printf("%.*s", bytes_read, buf);
-        }
+        bytes_read = recv(sock, buffer, RECV_BUF, 0);
+        assert(bytes_read != -1);
+
+        html_file = fopen(html_filename, "w");
+        assert(html_file);
+        fprintf(html_file, "%.*s", bytes_read, buffer);
+        fclose(html_file);
     } while (bytes_read > 0);
  
     close(sock);
- 
     return 0;
 }
