@@ -31,45 +31,47 @@ int get_socket(char *host, char *port) {
 
 char *base64_encode(char *input_str, int len_str) 
 { 
-  char char_set[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"; 
-  char *res_str = (char *) malloc(100 * sizeof(char)); 
-  int index, no_of_bits = 0, padding = 0, val = 0, count = 0, temp; 
+  char *char_set = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"; 
+  char *result = malloc(100 * sizeof(char)); 
+  int idx, num_bits = 0, padding = 0, value = 0, count = 0, tmp; 
+
   int i, j, k = 0; 
   for (i = 0; i < len_str; i += 3) { 
-    val = 0, count = 0, no_of_bits = 0; 
+    value = 0, count = 0, num_bits = 0; 
+
     for (j = i; j < len_str && j <= i + 2; j++) { 
-      val = val << 8; 
-      val = val | input_str[j]; 
+      value = value << 8; 
+      value = value | input_str[j]; 
       count++; 
     } 
     
-    no_of_bits = count * 8; 
-    padding = no_of_bits % 3; 
-    while (no_of_bits != 0) { 
-      if (no_of_bits >= 6) {
-      temp = no_of_bits - 6; 
-      index = (val >> temp) & 63; 
-      no_of_bits -= 6;         
+    num_bits = count * 8; 
+    padding = num_bits % 3; 
+    while (num_bits != 0) { 
+      if (num_bits >= 6) {
+        tmp = num_bits - 6; 
+        idx = (value >> tmp) & 63; 
+        num_bits -= 6;         
       } 
       else { 
-        temp = 6 - no_of_bits; 
-        index = (val << temp) & 63; 
-        no_of_bits = 0; 
+        tmp = 6 - num_bits; 
+        idx = (value << tmp) & 63; 
+        num_bits = 0; 
       } 
-      res_str[k++] = char_set[index]; 
+      result[k++] = char_set[idx]; 
     } 
   } 
   
   for (i = 1; i <= padding; i++) { 
-    res_str[k++] = '='; 
+    result[k++] = '='; 
   } 
   
-  res_str[k] = '\0'; 
-  return res_str; 
+  result[k] = '\0'; 
+  return result; 
 } 
 
 char *encode(char *username, char *password) {
-  // TODO
+  // TODO: Obfuscate
   int len = strlen(username) + strlen(password) + 1;
   char *data = calloc(len, sizeof(char));
   sprintf(data, "%s:%s", username, password);
