@@ -1,3 +1,5 @@
+/* f20180294@hyderabad.bits-pilani.ac.in Rupanshu Soi */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,20 +9,10 @@
 #include <netdb.h>
 #include <assert.h>
  
-#define MAX_LEN_MSG 512
+#define MAX_LEN_MSG 1024
 #define RECV_BUF 10000000
 #define BASE64_FACTOR 4
 #define TIMEOUT 2
-
-char* getLocation(char* buffer){
-  char* ans;
-  char* locStart = strstr(buffer, "Location: ");
-  char* locEnd = strstr(locStart, "\r\n");
-  *locEnd = '\0';
-  strcpy(ans, locStart+10);
-  *locEnd = '\r';
-  return ans;
-}
 
 int get_socket(char *host, char *port) {
     struct addrinfo hints, *res;
@@ -90,7 +82,7 @@ char *base64_encode(char *input_str, int len)
 } 
 
 char *encode(char *username, char *password) {
-  int len = strlen(username) + strlen(password) + 1;
+  int len = strlen(username) + strlen(password) + 2;
   char *data = calloc(len, sizeof(char));
   sprintf(data, "%s:%s", username, password);
   return base64_encode(data, len);
@@ -98,17 +90,45 @@ char *encode(char *username, char *password) {
 
 
 void make_msg(char* msg, char *URL, char *host, char *username, char *password) {
-  // todo: removed http, add it if its needed
-  sprintf(msg, "GET %s HTTP/1.1\r\nHost: "
-               "%s\r\nProxy-Authorization: Basic ", URL, host);
-  strcat(msg, encode(username, password));
-  strcat(msg, "\r\n\r\n");
+  sprintf(msg, "GET %s HTTP/1.1\r\nHost: %s\r\nProxy-Authorization: Basic %s\r\n\r\n",
+      URL, host, encode(username, password));
 }
 
-int main(int argc, char **argv)
-{
-    // TODO: Make Sure URL has http://
-    char *URL            = argv[1];
+char *make_absolute_URL(char *URL) {
+  if (URL != strstr(URL, "http://")) {
+    char *abs = calloc((strlen(URL) + strlen("http://") + 1), sizeof(char));
+    sprintf(abs, "http://%s", URL);
+    return abs;
+  }
+  return URL;
+}
+
+char *get_redirect_addr(char *buffer){
+  char *start = strstr(buffer, "Location: ");
+  assert(start);
+  start += 10;
+
+  char *end = strstr(start, "\r\n");
+  assert(start);
+
+  *end = '\0';
+  return start;
+}
+
+char *get_image_name(char *buffer) {
+  char *start = strstr(buffer, "<IMG SRC=\"");
+  assert(start);
+  start += 10;
+
+  char *end = strstr(start, "\"");
+  assert(end);
+
+  *end = '\0';
+  return start;
+}
+
+int main(int argc, char **argv) {
+    char *URL            = make_absolute_URL(argv[1]);
     char *host           = argv[2];
     char *port           = argv[3];
     char *username       = argv[4];
@@ -117,44 +137,42 @@ int main(int argc, char **argv)
     char *image_filename = argv[7];
 
     int sock = get_socket(host, port);
-    char* buffer = malloc(RECV_BUF * sizeof(char));
-    do{
+    char *buffer = malloc(RECV_BUF * sizeof(char));
+
+    do {
       char *msg = calloc(MAX_LEN_MSG, sizeof(char));
       make_msg(msg, URL, URL, username, password);
 
-      printf("msg sent: %s", msg);
       send(sock, msg, strlen(msg), 0);
   
       int bytes_read = 0, total_bytes_read = 0;
-      char* header_ptr;
+      char *header_ptr;
+
       while (1) {
         if ((bytes_read = recv(sock, buffer + total_bytes_read, RECV_BUF, 0)) <= 0) {
           break;
         }
         total_bytes_read += bytes_read;
       }
-      *(buffer+total_bytes_read) = '\0';
+      *(buffer + total_bytes_read) = '\0';
 
-      if(strstr(buffer, "HTTP/1.1 30") && strstr(buffer, "HTTP/1.1 30") < strstr(buffer, "\r\n\r\n")){
-        printf("Redirect Detected\n");
-        char* location;
-        location = getLocation(buffer); 
-        strcpy(URL, location);
+      if (strstr(buffer, "HTTP/1.1 30") && (strstr(buffer, "HTTP/1.1 30") < strstr(buffer, "\r\n\r\n"))) {
+        strcpy(URL, get_redirect_addr(buffer));
         continue;
       }
+
       FILE *html_file;
       html_file = fopen(html_filename, "w");
       assert(html_file);
-      // printf("%s", buffer);
       header_ptr = strstr(buffer, "\r\n\r\n");
       assert(header_ptr);
       fprintf(html_file, "%.*s", total_bytes_read - (int)(header_ptr + 4 - buffer), header_ptr + 4);
       fclose(html_file);
 
-      if (strcmp(URL, "info.in2p3.fr") == 0) {
-        char* image_URL = calloc(strlen(URL) + strlen("/cc.gif"), sizeof(char));
-        strcat(image_URL, URL);
-        strcat(image_URL, "/cc.gif");
+      if (strcmp(URL, "http://info.in2p3.fr") == 0) {
+        char *image_name = get_image_name(buffer);
+        char *image_URL = calloc(strlen(URL) + strlen(image_name) + 1, sizeof(char));
+        sprintf(image_URL, "%s/%s", URL, image_name);
         make_msg(msg, image_URL, URL, username, password);
         
         send(sock, msg, strlen(msg), 0);
@@ -176,9 +194,10 @@ int main(int argc, char **argv)
         fwrite(header_ptr + 4, total_bytes_read - (int)(header_ptr + 4 - buffer), 1, image_file);
         fclose(image_file);
       }
+
       break;
-    }while(1);
-    printf("%s", buffer);
+    } while (1);
+
     close(sock);
     return 0;
 }
