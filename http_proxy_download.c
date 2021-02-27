@@ -157,7 +157,8 @@ int main(int argc, char **argv) {
       *(buffer + total_bytes_read) = '\0';
 
       if (strstr(buffer, "HTTP/1.1 30") && (strstr(buffer, "HTTP/1.1 30") < strstr(buffer, "\r\n\r\n"))) {
-        strcpy(URL, get_redirect_addr(buffer));
+        free(msg);
+        URL = get_redirect_addr(buffer);
         continue;
       }
 
