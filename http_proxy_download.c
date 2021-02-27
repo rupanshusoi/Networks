@@ -138,9 +138,6 @@ int main(int argc, char **argv)
       
       send(sock, msg, strlen(msg), 0);
 
-      free(buffer);
-      buffer = malloc(RECV_BUF * sizeof(char));
-
       total_bytes_read = 0;
       while (1) {
         if ((bytes_read = recv(sock, buffer + total_bytes_read, RECV_BUF, 0)) == -1) {
