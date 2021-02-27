@@ -8,9 +8,9 @@
 #include <assert.h>
  
 #define MAX_LEN_MSG 512
-#define RECV_BUF 8192
+#define RECV_BUF 10000000
 #define BASE64_FACTOR 4
-#define TIMEOUT 5
+#define TIMEOUT 2
 
 int get_socket(char *host, char *port) {
     struct addrinfo hints, *res;
@@ -110,34 +110,27 @@ int main(int argc, char **argv)
 
     send(sock, msg, strlen(msg), 0);
  
+    int bytes_read = 0, total_bytes_read = 0;
+    char* header_ptr;
+    char* buffer = malloc(RECV_BUF * sizeof(char));
+
+    while (1) {
+      if ((bytes_read = recv(sock, buffer + total_bytes_read, RECV_BUF, 0)) == -1) {
+        break;
+      }
+      total_bytes_read += bytes_read;
+    }
+
     FILE *html_file;
     html_file = fopen(html_filename, "w");
     assert(html_file);
 
-    int bytes_read = 0;
-    char* header_ptr;
-    char buffer[RECV_BUF];
-    while (1) {
-      if ((bytes_read = recv(sock, buffer, RECV_BUF, 0)) == -1) {
-        break;
-      }
-
-      // Assume that the *entire* header will be received in one go
-      header_ptr = strstr(buffer, "\r\n\r\n");
-      if (header_ptr) {
-        fprintf(html_file, "%.*s", bytes_read - (int)(header_ptr + 4 - buffer), header_ptr + 4);
-      } else {
-        fprintf(html_file, "%.*s", bytes_read, buffer);
-      }
-    }
+    header_ptr = strstr(buffer, "\r\n\r\n");
+    assert(header_ptr);
+    fprintf(html_file, "%.*s", total_bytes_read - (int)(header_ptr + 4 - buffer), header_ptr + 4);
     fclose(html_file);
 
-    // Download image
     if (strcmp(URL, "info.in2p3.fr") == 0) {
-      FILE *image_file;
-      image_file = fopen(image_filename, "ab");
-      assert(image_file);
-
       char* image_URL = calloc(strlen(URL) + strlen("/cc.gif"), sizeof(char));
       strcat(image_URL, URL);
       strcat(image_URL, "/cc.gif");
@@ -145,19 +138,24 @@ int main(int argc, char **argv)
       
       send(sock, msg, strlen(msg), 0);
 
+      free(buffer);
+      buffer = malloc(RECV_BUF * sizeof(char));
+
+      total_bytes_read = 0;
       while (1) {
-        if ((bytes_read = recv(sock, buffer, RECV_BUF, 0)) == -1) {
+        if ((bytes_read = recv(sock, buffer + total_bytes_read, RECV_BUF, 0)) == -1) {
           break;
         }
-
-        // Assume that the *entire* header will be received in one go
-        header_ptr = strstr(buffer, "\r\n\r\n");
-        if (header_ptr) {
-          fwrite(buffer, bytes_read - (int)(header_ptr + 4 - buffer), 1, image_file);
-        } else {
-          fwrite(buffer, bytes_read, 1, image_file);
-        }
+        total_bytes_read += bytes_read;
       }
+
+      FILE *image_file;
+      image_file = fopen(image_filename, "wb");
+      assert(image_file);
+
+      header_ptr = strstr(buffer, "\r\n\r\n");
+      assert(header_ptr);
+      fwrite(header_ptr + 4, total_bytes_read - (int)(header_ptr + 4 - buffer), 1, image_file);
       fclose(image_file);
     }
 
