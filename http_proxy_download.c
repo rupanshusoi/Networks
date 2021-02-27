@@ -13,6 +13,7 @@
 #define RECV_BUF 10000000
 #define BASE64_FACTOR 4
 #define TIMEOUT 2
+#define CRLF "\r\n\r\n"
 
 int get_socket(char *host, char *port) {
     struct addrinfo hints, *res;
@@ -90,7 +91,7 @@ char *encode(char *username, char *password) {
 
 
 void make_msg(char* msg, char *URL, char *host, char *username, char *password) {
-  sprintf(msg, "GET %s HTTP/1.1\r\nHost: %s\r\nProxy-Authorization: Basic %s\r\n\r\n",
+  sprintf(msg, "GET %s HTTP/1.1\r\nHost: %s\r\nProxy-Authorization: Basic %s"CRLF,
       URL, host, encode(username, password));
 }
 
@@ -156,16 +157,15 @@ int main(int argc, char **argv) {
       }
       *(buffer + total_bytes_read) = '\0';
 
-      if (strstr(buffer, "HTTP/1.1 30") && (strstr(buffer, "HTTP/1.1 30") < strstr(buffer, "\r\n\r\n"))) {
+      if (strstr(buffer, "HTTP/1.1 30") && (strstr(buffer, "HTTP/1.1 30") < strstr(buffer, CRLF))) {
         free(msg);
         URL = get_redirect_addr(buffer);
         continue;
       }
 
-      FILE *html_file;
-      html_file = fopen(html_filename, "w");
+      FILE *html_file = fopen(html_filename, "w");
       assert(html_file);
-      header_ptr = strstr(buffer, "\r\n\r\n");
+      header_ptr = strstr(buffer, CRLF);
       assert(header_ptr);
       fprintf(html_file, "%.*s", total_bytes_read - (int)(header_ptr + 4 - buffer), header_ptr + 4);
       fclose(html_file);
@@ -186,11 +186,9 @@ int main(int argc, char **argv) {
           total_bytes_read += bytes_read;
         }
 
-        FILE *image_file;
-        image_file = fopen(image_filename, "wb");
+        FILE *image_file = fopen(image_filename, "wb");
         assert(image_file);
-
-        header_ptr = strstr(buffer, "\r\n\r\n");
+        header_ptr = strstr(buffer, CRLF);
         assert(header_ptr);
         fwrite(header_ptr + 4, total_bytes_read - (int)(header_ptr + 4 - buffer), 1, image_file);
         fclose(image_file);
