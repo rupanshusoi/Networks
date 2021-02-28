@@ -1,5 +1,8 @@
 /* f20180294@hyderabad.bits-pilani.ac.in Rupanshu Soi */
 
+/* A C program to download the raw HTML of a webpage over HTTP. */
+/* We recv the entire response data into a large buffer, find out where the HTTP header ends and write out the rest to file. */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
