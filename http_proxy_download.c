@@ -153,7 +153,7 @@ int main(int argc, char **argv) {
       char *header_ptr;
 
       while (1) {
-        if ((bytes_read = recv(sock, buffer + total_bytes_read, RECV_BUF, 0)) <= 0) {
+        if ((bytes_read = recv(sock, buffer + total_bytes_read, RECV_BUF - total_bytes_read, 0)) <= 0) {
           break;
         }
         total_bytes_read += bytes_read;
@@ -183,7 +183,7 @@ int main(int argc, char **argv) {
 
         total_bytes_read = 0;
         while (1) {
-          if ((bytes_read = recv(sock, buffer + total_bytes_read, RECV_BUF, 0)) <= 0) {
+          if ((bytes_read = recv(sock, buffer + total_bytes_read, RECV_BUF - total_bytes_read, 0)) <= 0) {
             break;
           }
           total_bytes_read += bytes_read;
