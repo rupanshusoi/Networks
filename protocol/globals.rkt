@@ -3,7 +3,7 @@
 (define CLIENT-PORT 1061)
 (define WINDOW-SIZE 10)
 (define BUFFER-SIZE 1000)
-(define BODY-SIZE 10)
+(define PKT-BODY-SIZE 10)
 
 (define SYN 0)
 (define DATA 1)
