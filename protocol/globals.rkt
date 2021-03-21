@@ -4,6 +4,9 @@
 (define WINDOW-SIZE 10)
 (define BUFFER-SIZE 1000)
 (define PKT-BODY-SIZE 10)
+(define PKT-HEADER-SIZE 13)
+(define PKT-SIZE (+ PKT-HEADER-SIZE PKT-BODY-SIZE))
+(define TIMEOUT 2)
 
 (define SYN 0)
 (define DATA 1)
