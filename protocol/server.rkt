@@ -65,8 +65,8 @@
 (define (queue-pkt pending)
   (if (and
         (not (empty? pending))
-        (< (caar pending) MAX-SEQ-NUM)
-        (< (- (caar pending) (car (last pending))) WINDOW-SIZE))
+        (<= NEXT-SEQ-NUM MAX-SEQ-NUM)
+        (< (length pending) WINDOW-SIZE))
     (cons (list (get-next-seq-num) SEND-ME) pending)
     pending))
 
@@ -104,7 +104,7 @@
 
 (define (init-pkts)
   (reset-seq-num)
-  (map (lambda (n) (list (get-next-seq-num) SEND-ME)) (reverse (range (min (add1 MAX-SEQ-NUM) WINDOW-SIZE)))))
+  (reverse (map (lambda (n) (list (get-next-seq-num) SEND-ME)) (range (min (add1 MAX-SEQ-NUM) WINDOW-SIZE)))))
 
 (define (start bstr)
   (set-globals bstr)
