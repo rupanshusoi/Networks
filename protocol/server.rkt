@@ -96,5 +96,5 @@
     (sender bstr (init-pkts) (udp-open-socket) listener-sock)
     (raise 'failed #t))) 
 
-(start (file->bytes "test.txt"))
+(start (file->bytes INPUT-FILE))
 

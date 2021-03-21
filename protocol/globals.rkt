@@ -5,7 +5,7 @@
 (define PKT-HEADER-SIZE 13)
 (define PKT-SIZE (+ PKT-HEADER-SIZE PKT-BODY-SIZE))
 (define BUF-SIZE PKT-SIZE)
-(define WINDOW-SIZE 10) ;; must be > 1
+(define WINDOW-SIZE 10) ;; Must be > 1
 (define TIMEOUT 1)
 
 (define SYN 0)
@@ -15,6 +15,9 @@
 
 (define SEND-ME 0)
 (define ACK-ME 1)
+
+(define INPUT-FILE "test.txt")
+(define OUTPUT-FILE "recv.txt")
 
 (define (make-header seq-num type)
   (bytes-append
@@ -38,3 +41,4 @@
 
 (define send-to-server (send-to SERVER-PORT))
 (define send-to-client (send-to CLIENT-PORT))
+
