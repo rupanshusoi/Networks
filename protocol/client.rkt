@@ -3,8 +3,6 @@
 (require racket/udp)
 (include "globals.rkt")
 
-(define (seq-num bstr-pkt) (integer-bytes->integer bstr-pkt #f #f 0 4))
-
 (define (ack-pkt bstr-pkt sock)
   (send-to-server sock (make-header (seq-num bstr-pkt) ACK))
   bstr-pkt)
