@@ -55,7 +55,7 @@
       (bytes-append (make-header (first pkt) DATA) (make-body (first pkt) bstr)))
     (list (first pkt) ACK-ME (current-seconds)))
   (if (empty? pending) ;; Last pkt has been acked
-    (finalize)
+    (finalize sender-sock)
     (listener bstr (send-pkts pending) sender-sock listener-sock)))
 
 (define (rem-acked-pkt pending seq-num)
@@ -80,10 +80,16 @@
       listener-sock)
     (sender bstr pending sender-sock listener-sock)))
 
-(define (finalize) (displayln "Shutting down server."))
+(define (finalize sock)
+  (udp-send-to
+    sock
+    ADDR
+    CLIENT-PORT
+    (bytes-append (make-header 0 FIN) (make-bytes PKT-BODY-SIZE)))
+  (displayln "FIN sent. Shutting down server."))
 
 (define (init-pkts)
-  (map (lambda (n) (list (get-next-seq-num) SEND-ME)) (reverse (range (min MAX-SEQ-NUM WINDOW-SIZE)))))
+  (map (lambda (n) (list (get-next-seq-num) SEND-ME)) (reverse (range (min (add1 MAX-SEQ-NUM) WINDOW-SIZE)))))
 
 (define (start bstr)
   (set-globals bstr)
