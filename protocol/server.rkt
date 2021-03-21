@@ -97,7 +97,7 @@
   (define buf (make-bytes PKT-SIZE))
   (match-define-values (num-bytes _ _) (udp-receive!* listener-sock buf))
   (if num-bytes
-    (displayln "FIN sent. Shutting down server.")
+    (displayln "FIN acked successfully. Shutting down server.")
     (if (< (+ TIMEOUT time) (current-seconds))
       (finalize sender-sock listener-sock (current-seconds))
       (finalize sender-sock listener-sock time))))

@@ -17,12 +17,12 @@
     (integer->integer-bytes 0 4 #f)
     (integer->integer-bytes type 1 #f)))
 
-(define (ack-pkt bstr sock)
+(define (ack-pkt seq-num bstr sock)
   (udp-send-to
     sock
     ADDR
     SERVER-PORT
-    (bytes-append (make-header (seq-num bstr) ACK) (make-bytes PKT-BODY-SIZE)))
+    (bytes-append (make-header seq-num ACK) (make-bytes PKT-BODY-SIZE)))
   bstr)
 
 (define (bstr->pkt bstr)
@@ -43,9 +43,8 @@
   (match-define-values (num-bytes _ _) (udp-receive!* listener-sock buf))
   (if num-bytes
     (begin
-      ;(define bstr (subbytes buf 0 num-bytes))
       (if (data-pkt? (subbytes buf 0 num-bytes))
-        (recv (add-pkt (ack-pkt (subbytes buf 0 num-bytes) sender-sock) pkts) sender-sock listener-sock)
+        (recv (add-pkt (ack-pkt (seq-num (subbytes buf 0 num-bytes)) (subbytes buf 0 num-bytes) sender-sock) pkts) sender-sock listener-sock)
         (finalize sender-sock pkts)))
     (cond ((and (empty? pkts) (< (+ TIMEOUT time) (current-seconds)))
            (begin
@@ -61,6 +60,7 @@
     (apply bytes-append (map second (sort (remove-duplicates pkts #:key car) < #:key first)))
     file)
   (close-output-port file)
+  (ack-pkt 0 0 sock)
   (displayln "File saved. Shutting down client."))
 
 (define (start)
