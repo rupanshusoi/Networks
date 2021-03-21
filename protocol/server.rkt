@@ -3,9 +3,6 @@
 (require racket/udp)
 (include "globals.rkt")
 
-(define SEND-ME 0)
-(define ACK-ME 1)
-
 (define NEXT-SEQ-NUM 0)
 (define MAX-SEQ-NUM 0)
 (define MAX-BYTES 0)
@@ -22,13 +19,6 @@
   (define len (bytes-length bstr))
   (set! MAX-SEQ-NUM (floor (/ len PKT-BODY-SIZE)))
   (set! MAX-BYTES len))
-
-(define (make-header seq-num type)
-  (bytes-append
-    (integer->integer-bytes seq-num 4 #f)
-    (integer->integer-bytes 0 4 #f)
-    (integer->integer-bytes 0 4 #f)
-    (integer->integer-bytes type 1 #f)))
 
 (define (make-body seq-num bstr)
   (subbytes
@@ -49,14 +39,12 @@
           ((send-pkt? (car pkts)) (cons (send-pkt (car pkts)) (send-pkts (cdr pkts))))
           (else (cons (car pkts) (send-pkts (cdr pkts))))))
   (define (send-pkt pkt)
-    (udp-send-to
-      sender-sock
-      ADDR
-      CLIENT-PORT
-      (bytes-append (make-header (first pkt) DATA) (make-body (first pkt) bstr)))
+    (send-to-client sender-sock (make-header (first pkt) DATA) (make-body (first pkt) bstr))
     (list (first pkt) ACK-ME (current-seconds)))
   (if (empty? pending) ;; Last pkt has been acked
-    (finalize sender-sock listener-sock (current-seconds))
+    (begin
+      (send-to-client sender-sock (make-header 0 FIN))
+      (finalize sender-sock listener-sock (current-seconds)))
     (listener bstr (send-pkts pending) sender-sock listener-sock)))
 
 (define (rem-acked-pkt pending seq-num)
@@ -70,16 +58,11 @@
     (cons (list (get-next-seq-num) SEND-ME) pending)
     pending))
 
-(define (syn-pkt? bstr)
-  (if (eq? SYN (integer-bytes->integer bstr #f #f 12 13))
-    #t
-    #f))
-
 (define (listener bstr pending sender-sock listener-sock)
   (define buf (make-bytes PKT-SIZE))
   (match-define-values (num-bytes _ _) (udp-receive!* listener-sock buf))
   (if num-bytes
-    (if (syn-pkt? buf)
+    (if (syn-bstr-pkt? buf)
       (sender bstr (init-pkts) sender-sock listener-sock) ;; Restart SR from packet 0 
       (sender
         bstr
@@ -89,17 +72,14 @@
     (sender bstr pending sender-sock listener-sock)))
 
 (define (finalize sender-sock listener-sock [time 0])
-  (udp-send-to
-    sender-sock
-    ADDR
-    CLIENT-PORT
-    (bytes-append (make-header 0 FIN) (make-bytes PKT-BODY-SIZE)))
   (define buf (make-bytes PKT-SIZE))
   (match-define-values (num-bytes _ _) (udp-receive!* listener-sock buf))
   (if num-bytes
     (displayln "FIN acked successfully. Shutting down server.")
     (if (< (+ TIMEOUT time) (current-seconds))
-      (finalize sender-sock listener-sock (current-seconds))
+      (begin
+        (send-to-client sender-sock (make-header 0 FIN))
+        (finalize sender-sock listener-sock (current-seconds)))
       (finalize sender-sock listener-sock time))))
 
 (define (init-pkts)
@@ -112,7 +92,7 @@
   (udp-bind! listener-sock ADDR SERVER-PORT)
   (define buf (make-bytes PKT-SIZE))
   (udp-receive! listener-sock buf)
-  (if (syn-pkt? buf)
+  (if (syn-bstr-pkt? buf)
     (sender bstr (init-pkts) (udp-open-socket) listener-sock)
     (raise 'failed #t))) 
 

@@ -3,52 +3,29 @@
 (require racket/udp)
 (include "globals.rkt")
 
-(define (seq-num bstr) (integer-bytes->integer bstr #f #f 0 4))
+(define (seq-num bstr-pkt) (integer-bytes->integer bstr-pkt #f #f 0 4))
 
-(define (data-pkt? bstr)
-  (if (eq? DATA (integer-bytes->integer bstr #f #f 12 13))
-    #t
-    #f))
+(define (ack-pkt seq-num bstr-pkt sock)
+  (send-to-server sock (make-header seq-num ACK))
+  bstr-pkt)
 
-(define (make-header seq-num type)
-  (bytes-append
-    (integer->integer-bytes seq-num 4 #f)
-    (integer->integer-bytes 0 4 #f)
-    (integer->integer-bytes 0 4 #f)
-    (integer->integer-bytes type 1 #f)))
+(define (bstr-pkt->pkt bstr-pkt)
+  (cons (seq-num bstr-pkt) (list (subbytes bstr-pkt PKT-HEADER-SIZE))))
 
-(define (ack-pkt seq-num bstr sock)
-  (udp-send-to
-    sock
-    ADDR
-    SERVER-PORT
-    (bytes-append (make-header seq-num ACK) (make-bytes PKT-BODY-SIZE)))
-  bstr)
-
-(define (bstr->pkt bstr)
-  (cons (seq-num bstr) (list (subbytes bstr PKT-HEADER-SIZE))))
-
-(define (add-pkt bstr pkts)
-  (cons (bstr->pkt bstr) pkts))
-
-(define (send-syn sock)
-  (udp-send-to
-    sock
-    ADDR
-    SERVER-PORT
-    (bytes-append (make-header 0 SYN) (make-bytes PKT-BODY-SIZE))))
+(define (save-pkt bstr-pkt pkts)
+  (cons (bstr-pkt->pkt bstr-pkt) pkts))
 
 (define (recv pkts sender-sock listener-sock [time 0])
   (define buf (make-bytes PKT-SIZE))
   (match-define-values (num-bytes _ _) (udp-receive!* listener-sock buf))
   (if num-bytes
-    (begin
-      (if (data-pkt? (subbytes buf 0 num-bytes))
-        (recv (add-pkt (ack-pkt (seq-num (subbytes buf 0 num-bytes)) (subbytes buf 0 num-bytes) sender-sock) pkts) sender-sock listener-sock)
-        (finalize sender-sock pkts)))
+    (let ([bstr-pkt (subbytes buf 0 num-bytes)])
+      (if (data-bstr-pkt? bstr-pkt)
+      (recv (save-pkt (ack-pkt (seq-num bstr-pkt) bstr-pkt sender-sock) pkts) sender-sock listener-sock)
+      (finalize sender-sock pkts)))
     (cond ((and (empty? pkts) (< (+ TIMEOUT time) (current-seconds)))
            (begin
-             (send-syn sender-sock)
+             (send-to-server sender-sock (make-header 0 SYN))
              (recv pkts sender-sock listener-sock (current-seconds))))
           ((and (empty? pkts) (>= (+ TIMEOUT time) (current-seconds)))
            (recv pkts sender-sock listener-sock time))
@@ -67,8 +44,8 @@
   (define sender-sock (udp-open-socket))
   (define listener-sock (udp-open-socket))
   (udp-bind! listener-sock ADDR CLIENT-PORT)
-  (send-syn sender-sock)
-  (recv '() sender-sock listener-sock) (current-seconds))
+  (send-to-server sender-sock (make-header 0 SYN))
+  (recv '() sender-sock listener-sock (current-seconds)))
 
 (start)
 
