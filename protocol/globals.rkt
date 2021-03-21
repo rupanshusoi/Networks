@@ -1,11 +1,11 @@
 (define ADDR "127.0.0.1")
 (define SERVER-PORT 1060)
 (define CLIENT-PORT 1061)
-(define WINDOW-SIZE 10)
-(define BUFFER-SIZE 1000)
 (define PKT-BODY-SIZE 10)
 (define PKT-HEADER-SIZE 13)
 (define PKT-SIZE (+ PKT-HEADER-SIZE PKT-BODY-SIZE))
+(define BUF-SIZE PKT-SIZE)
+(define WINDOW-SIZE 10)
 (define TIMEOUT 2)
 
 (define SYN 0)

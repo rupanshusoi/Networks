@@ -29,6 +29,12 @@
     (integer->integer-bytes 0 4 #f)
     (integer->integer-bytes type 1 #f)))
 
+(define (make-body seq-num bstr)
+  (subbytes
+    bstr
+    (* seq-num PKT-BODY-SIZE)
+    (min MAX-BYTES (* (add1 seq-num) PKT-BODY-SIZE))))
+
 (define (sender bstr pending sender-sock listener-sock)
   (define (send-pkt? pkt)
     (if (or
@@ -46,20 +52,18 @@
       sender-sock
       ADDR
       CLIENT-PORT
-      (bytes-append
-        (make-header (first pkt) DATA)
-        (subbytes
-          bstr
-          (* (first pkt) PKT-BODY-SIZE)
-          (min MAX-BYTES (* (add1 (first pkt)) PKT-BODY-SIZE)))))
+      (bytes-append (make-header (first pkt) DATA) (make-body (first pkt) bstr)))
     (list (first pkt) ACK-ME (current-seconds)))
-  (listener bstr (send-pkts pending) sender-sock listener-sock))
+  (if (empty? pending) ;; Last pkt has been acked
+    (finalize)
+    (listener bstr (send-pkts pending) sender-sock listener-sock)))
 
 (define (rem-acked-pkt pending seq-num)
   (remove seq-num pending (lambda (seq-num pkt) (eq? seq-num (car pkt)))))
 
 (define (queue-pkt pending)
   (if (and
+        (not (empty? pending))
         (< (caar pending) MAX-SEQ-NUM)
         (< (- (caar pending) (car (last pending))) WINDOW-SIZE))
     (cons (list (get-next-seq-num) SEND-ME) pending)
@@ -75,6 +79,8 @@
       sender-sock
       listener-sock)
     (sender bstr pending sender-sock listener-sock)))
+
+(define (finalize) (displayln "Shutting down server."))
 
 (define (init-pkts)
   (map (lambda (n) (list (get-next-seq-num) SEND-ME)) (reverse (range (min MAX-SEQ-NUM WINDOW-SIZE)))))
