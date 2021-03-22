@@ -15,21 +15,21 @@
     pkts
     (cons pkt pkts)))
 
-(define (recv pkts sender-sock listener-sock [time 0])
+(define (recv pkts sock [time 0])
   (define buf (make-bytes PKT-SIZE))
-  (match-define-values (num-bytes _ _) (udp-receive!* listener-sock buf))
+  (match-define-values (num-bytes _ _) (udp-receive!* sock buf))
   (cond
     (num-bytes
       (define bstr-pkt (subbytes buf 0 num-bytes))
       (cond ((data-bstr-pkt? bstr-pkt)
-             (send-to-server sender-sock (make-header (seq-num bstr-pkt) ACK))
-             (recv (save-pkt (bstr-pkt->pkt bstr-pkt) pkts) sender-sock listener-sock))
-            (else (finalize sender-sock pkts))))
+             (send-to-server sock (make-header (seq-num bstr-pkt) ACK))
+             (recv (save-pkt (bstr-pkt->pkt bstr-pkt) pkts) sock))
+            (else (finalize sock pkts))))
     (else
       (cond ((and (empty? pkts) (< (+ TIMEOUT time) (current-seconds)))
-             (send-to-server sender-sock (make-header 0 SYN))
-             (recv pkts sender-sock listener-sock (current-seconds)))
-            (else (recv pkts sender-sock listener-sock time))))))
+             (send-to-server sock (make-header 0 SYN))
+             (recv pkts sock (current-seconds)))
+            (else (recv pkts sock time))))))
 
 (define (finalize sock pkts)
   (define file (open-output-file OUTPUT-FILE #:exists 'replace))
@@ -41,11 +41,10 @@
   (displayln "File saved. Shutting down client."))
 
 (define (start)
-  (define sender-sock (udp-open-socket))
-  (define listener-sock (udp-open-socket))
-  (udp-bind! listener-sock ADDR CLIENT-PORT)
-  (send-to-server sender-sock (make-header 0 SYN))
-  (recv '() sender-sock listener-sock (current-seconds)))
+  (define sock (udp-open-socket))
+  (udp-bind! sock ADDR CLIENT-PORT)
+  (send-to-server sock (make-header 0 SYN))
+  (recv '() sock (current-seconds)))
 
 (start)
 

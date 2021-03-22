@@ -31,19 +31,19 @@
       #t
       #f))
 
-(define (sender bstr-file pkts sender-sock listener-sock)
+(define (sender bstr-file pkts sock)
   (define (send-pkts pkts)
     (cond ((empty? pkts) '())
           ((send-pkt? (car pkts)) (cons (send-pkt (car pkts)) (send-pkts (cdr pkts))))
           (else (cons (car pkts) (send-pkts (cdr pkts))))))
   (define (send-pkt pkt)
     (define seq-num (first pkt))
-    (send-to-client sender-sock (make-header seq-num DATA) (make-body seq-num bstr-file))
+    (send-to-client sock (make-header seq-num DATA) (make-body seq-num bstr-file))
     (list (first pkt) ACK-ME (current-seconds)))
   (cond ((empty? pkts) ;; Last pkt has been acked
-          (send-to-client sender-sock (make-header 0 FIN))
-          (finalize sender-sock listener-sock (current-seconds)))
-        (else (listener bstr-file (send-pkts pkts) sender-sock listener-sock))))
+          (send-to-client sock (make-header 0 FIN))
+          (finalize sock (current-seconds)))
+        (else (listener bstr-file (send-pkts pkts) sock))))
 
 (define (rem-acked-pkt pkts seq-num)
   (remove seq-num pkts (lambda (seq-num pkt) (eq? seq-num (car pkt)))))
@@ -55,27 +55,26 @@
     (cons (list (get-next-seq-num) SEND-ME) pkts)
     pkts))
 
-(define (listener bstr-file pkts sender-sock listener-sock)
+(define (listener bstr-file pkts sock)
   (define buf (make-bytes PKT-SIZE))
-  (match-define-values (num-bytes _ _) (udp-receive!* listener-sock buf))
+  (match-define-values (num-bytes _ _) (udp-receive!* sock buf))
   (if num-bytes
     (if (syn-bstr-pkt? buf)
-      (sender bstr-file (init-pkts) sender-sock listener-sock) ;; Restart SR from packet 0 
+      (sender bstr-file (init-pkts) sock) ;; Restart SR from packet 0 
       (sender bstr-file
               (queue-next-pkt (rem-acked-pkt pkts (seq-num buf)))
-              sender-sock
-              listener-sock))
-    (sender bstr-file pkts sender-sock listener-sock)))
+              sock))
+    (sender bstr-file pkts sock)))
 
-(define (finalize sender-sock listener-sock [time 0])
+(define (finalize sock [time 0])
   (define buf (make-bytes PKT-SIZE))
-  (match-define-values (num-bytes _ _) (udp-receive!* listener-sock buf))
+  (match-define-values (num-bytes _ _) (udp-receive!* sock buf))
   (if num-bytes
     (displayln "FIN acked successfully. Shutting down server.")
     (cond ((< (+ TIMEOUT time) (current-seconds))
-           (send-to-client sender-sock (make-header 0 FIN))
-           (finalize sender-sock listener-sock (current-seconds)))
-          (else (finalize sender-sock listener-sock time)))))
+           (send-to-client sock (make-header 0 FIN))
+           (finalize sock (current-seconds)))
+          (else (finalize sock time)))))
 
 (define (init-pkts)
   (reset-seq-num)
@@ -83,12 +82,12 @@
                 (range (min (add1 MAX-SEQ-NUM) WINDOW-SIZE)))))
 
 (define (start bstr-file)
-  (define listener-sock (udp-open-socket))
-  (udp-bind! listener-sock ADDR SERVER-PORT)
+  (define sock (udp-open-socket))
+  (udp-bind! sock ADDR SERVER-PORT)
   (define buf (make-bytes PKT-SIZE))
-  (udp-receive! listener-sock buf)
+  (udp-receive! sock buf)
   (if (syn-bstr-pkt? buf)
-    (sender bstr-file (init-pkts) (udp-open-socket) listener-sock)
+    (sender bstr-file (init-pkts) sock)
     (raise 'failed #t))) 
 
 (define bstr-file (file->bytes INPUT-FILE))
