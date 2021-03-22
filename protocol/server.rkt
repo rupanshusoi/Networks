@@ -84,6 +84,7 @@
 (define (start bstr-file)
   (define sock (udp-open-socket))
   (udp-bind! sock ADDR SERVER-PORT)
+  (udp-set-receive-buffer-size! sock (* 2 PKT-SIZE WINDOW-SIZE))
   (define buf (make-bytes PKT-SIZE))
   (udp-receive! sock buf)
   (if (syn-bstr-pkt? buf)
