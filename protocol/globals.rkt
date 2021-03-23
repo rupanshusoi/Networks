@@ -1,7 +1,7 @@
 (define ADDR "127.0.0.1")
 (define SERVER-PORT 1060)
 (define CLIENT-PORT 1061)
-(define PKT-BODY-SIZE 100)
+(define PKT-BODY-SIZE 1000)
 (define PKT-HEADER-SIZE 13)
 (define PKT-SIZE (+ PKT-HEADER-SIZE PKT-BODY-SIZE))
 (define WINDOW-SIZE 10) ;; Must be > 1
@@ -15,8 +15,8 @@
 (define SEND-ME 0)
 (define ACK-ME 1)
 
-(define INPUT-FILE "test.txt")
-(define OUTPUT-FILE "recv.txt")
+(define INPUT-FILE "test")
+(define OUTPUT-FILE "recv")
 
 (define (make-header seq-num type)
   (bytes-append
