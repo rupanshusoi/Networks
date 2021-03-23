@@ -49,7 +49,7 @@
   (udp-bind! sock ADDR CLIENT-PORT)
   (udp-set-receive-buffer-size! sock (* 2 PKT-SIZE WINDOW-SIZE))
   (send-to-server sock (make-header 0 SYN))
-  (define output-file (open-output-file OUTPUT-FILE #:exists 'append))
+  (define output-file (open-output-file OUTPUT-FILE #:exists 'replace))
   (recv '() '()  sock output-file (current-seconds))
   (close-output-port output-file))
 
