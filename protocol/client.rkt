@@ -4,7 +4,7 @@
 (include "globals.rkt")
 
 (define (bstr-pkt->pkt bstr-pkt)
-  (cons (seq-num bstr-pkt) (list (subbytes bstr-pkt PKT-HEADER-SIZE))))
+  (cons (extract-seq-num bstr-pkt) (list (subbytes bstr-pkt PKT-HEADER-SIZE))))
 
 (define (add-pkt pkt pkts written-pkts)
   (if (or (assoc (first pkt) pkts)
@@ -25,7 +25,7 @@
     (num-bytes
       (define bstr-pkt (subbytes buf 0 num-bytes))
       (cond ((data-bstr-pkt? bstr-pkt)
-             (send-to-server sock (make-header (seq-num bstr-pkt) ACK))
+             (send-to-server sock (make-header (extract-seq-num bstr-pkt) ACK))
              (call-with-values (lambda ()
                                  (write-pkts
                                    (add-pkt (bstr-pkt->pkt bstr-pkt) pkts written-pkts)
@@ -47,7 +47,7 @@
 (define (start)
   (define sock (udp-open-socket))
   (udp-bind! sock ADDR CLIENT-PORT)
-  (udp-set-receive-buffer-size! sock (* 2 PKT-SIZE WINDOW-SIZE))
+  (udp-set-receive-buffer-size! sock (max (* 1024 1024) (* 2 PKT-SIZE WINDOW-SIZE)))
   (send-to-server sock (make-header 0 SYN))
   (define output-file (open-output-file OUTPUT-FILE #:exists 'replace))
   (recv '() '()  sock output-file (current-seconds))

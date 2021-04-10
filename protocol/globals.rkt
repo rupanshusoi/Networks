@@ -1,7 +1,7 @@
 (define ADDR "127.0.0.1")
 (define SERVER-PORT 1060)
 (define CLIENT-PORT 1061)
-(define PKT-BODY-SIZE 1000)
+(define PKT-BODY-SIZE 100)
 (define PKT-HEADER-SIZE 13)
 (define PKT-SIZE (+ PKT-HEADER-SIZE PKT-BODY-SIZE))
 (define WINDOW-SIZE 10) ;; Must be > 1
@@ -19,13 +19,12 @@
 (define OUTPUT-FILE "recv")
 
 (define (make-header seq-num type)
-  (bytes-append
-    (integer->integer-bytes seq-num 4 #f)
-    (integer->integer-bytes 0 4 #f)
-    (integer->integer-bytes 0 4 #f)
-    (integer->integer-bytes type 1 #f)))
+  (bytes-append (integer->integer-bytes seq-num 4 #f)
+                (integer->integer-bytes 0 4 #f)
+                (integer->integer-bytes 0 4 #f)
+                (integer->integer-bytes type 1 #f)))
 
-(define (seq-num bstr-pkt) (integer-bytes->integer bstr-pkt #f #f 0 4))
+(define (extract-seq-num bstr-pkt) (integer-bytes->integer bstr-pkt #f #f 0 4))
 
 (define (type-bstr-pkt? type)
   (lambda (bstr)

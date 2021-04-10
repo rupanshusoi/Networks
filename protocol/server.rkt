@@ -20,32 +20,13 @@
   (set! MAX-SEQ-NUM (floor (/ len PKT-BODY-SIZE)))
   (set! MAX-BYTES len))
 
-(define (make-body seq-num bstr-file)
-  (subbytes bstr-file
-            (* seq-num PKT-BODY-SIZE)
-            (min MAX-BYTES (* (add1 seq-num) PKT-BODY-SIZE))))
-
 (define (send-pkt? pkt)
     (if (or (eq? (second pkt) SEND-ME)
             (< (+ TIMEOUT (third pkt)) (current-seconds)))
       #t
       #f))
 
-(define (sender bstr-file pkts sock)
-  (define (send-pkts pkts)
-    (cond ((empty? pkts) '())
-          ((send-pkt? (car pkts)) (cons (send-pkt (car pkts)) (send-pkts (cdr pkts))))
-          (else (cons (car pkts) (send-pkts (cdr pkts))))))
-  (define (send-pkt pkt)
-    (define seq-num (first pkt))
-    (send-to-client sock (make-header seq-num DATA) (make-body seq-num bstr-file))
-    (list (first pkt) ACK-ME (current-seconds)))
-  (cond ((empty? pkts) ;; Last pkt has been acked
-          (send-to-client sock (make-header 0 FIN))
-          (finalize sock (current-seconds)))
-        (else (listener bstr-file (send-pkts pkts) sock))))
-
-(define (rem-acked-pkt pkts seq-num)
+(define (rem-acked-pkt seq-num pkts)
   (remove seq-num pkts (lambda (seq-num pkt) (eq? seq-num (car pkt)))))
 
 (define (queue-next-pkt pkts)
@@ -55,27 +36,6 @@
     (cons (list (get-next-seq-num) SEND-ME) pkts)
     pkts))
 
-(define (listener bstr-file pkts sock)
-  (define buf (make-bytes PKT-SIZE))
-  (match-define-values (num-bytes _ _) (udp-receive!* sock buf))
-  (if num-bytes
-    (if (syn-bstr-pkt? buf)
-      (sender bstr-file (init-pkts) sock) ;; Restart SR from packet 0 
-      (sender bstr-file
-              (queue-next-pkt (rem-acked-pkt pkts (seq-num buf)))
-              sock))
-    (sender bstr-file pkts sock)))
-
-(define (finalize sock [time 0])
-  (define buf (make-bytes PKT-SIZE))
-  (match-define-values (num-bytes _ _) (udp-receive!* sock buf))
-  (if num-bytes
-    (displayln "FIN acked successfully. Shutting down server.")
-    (cond ((< (+ TIMEOUT time) (current-seconds))
-           (send-to-client sock (make-header 0 FIN))
-           (finalize sock (current-seconds)))
-          (else (finalize sock time)))))
-
 (define (init-pkts)
   (reset-seq-num)
   (reverse (map (lambda (n) (list (get-next-seq-num) SEND-ME))
@@ -83,12 +43,43 @@
 
 (define (start bstr-file)
   (define sock (udp-open-socket))
+  (define buf (make-bytes PKT-SIZE))
+  (define (make-body seq-num)
+    (subbytes bstr-file
+              (* seq-num PKT-BODY-SIZE)
+              (min MAX-BYTES (* (add1 seq-num) PKT-BODY-SIZE))))
+  (define (sender pkts)
+    (define (send-pkts pkts)
+      (cond ((empty? pkts) '())
+            ((send-pkt? (car pkts)) (cons (send-pkt (car pkts)) (send-pkts (cdr pkts))))
+            (else (cons (car pkts) (send-pkts (cdr pkts))))))
+    (define (send-pkt pkt)
+      (send-to-client sock (make-header (first pkt) DATA) (make-body (first pkt)))
+      (list (first pkt) ACK-ME (current-seconds)))
+    (cond ((empty? pkts) ;; Last pkt has been acked
+            (send-to-client sock (make-header 0 FIN))
+            (finalize (current-seconds)))
+          (else (listener (send-pkts pkts)))))
+  (define (listener pkts)
+    (match-define-values (num-bytes _ _) (udp-receive!* sock buf))
+    (if num-bytes
+      (if (syn-bstr-pkt? buf)
+        (sender (init-pkts)) ;; Restart SR from packet 0 
+        (sender (queue-next-pkt (rem-acked-pkt (extract-seq-num buf) pkts))))
+      (sender pkts)))
+  (define (finalize [time 0])
+    (match-define-values (num-bytes _ _) (udp-receive!* sock buf))
+    (if num-bytes
+      (displayln "FIN acked successfully. Shutting down server.")
+      (cond ((< (+ TIMEOUT time) (current-seconds))
+             (send-to-client sock (make-header 0 FIN))
+             (finalize (current-seconds)))
+            (else (finalize time)))))
   (udp-bind! sock ADDR SERVER-PORT)
   (udp-set-receive-buffer-size! sock (* 2 PKT-SIZE WINDOW-SIZE))
-  (define buf (make-bytes PKT-SIZE))
   (udp-receive! sock buf)
   (if (syn-bstr-pkt? buf)
-    (sender bstr-file (init-pkts) sock)
+    (sender (init-pkts))
     (raise 'failed #t))) 
 
 (define bstr-file (file->bytes INPUT-FILE))
