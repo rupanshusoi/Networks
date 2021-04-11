@@ -5,24 +5,15 @@
 
 (define NEXT-SEQ-NUM 0)
 (define MAX-SEQ-NUM 0)
-(define MAX-BYTES 0)
 
 (define (get-next-seq-num)
   (define x NEXT-SEQ-NUM)
   (set! NEXT-SEQ-NUM (add1 NEXT-SEQ-NUM))
   x)
 
-(define (reset-seq-num)
-  (set! NEXT-SEQ-NUM 0))
-
-(define (set-globals bstr-file)
-  (define len (bytes-length bstr-file))
-  (set! MAX-SEQ-NUM (floor (/ len PKT-BODY-SIZE)))
-  (set! MAX-BYTES len))
-
 (define (send-pkt? pkt)
     (if (or (eq? (second pkt) SEND-ME)
-            (< (+ TIMEOUT (third pkt)) (current-seconds)))
+            (< (+ TIMEOUT (third pkt)) (current-inexact-milliseconds)))
       #t
       #f))
 
@@ -32,12 +23,12 @@
 (define (queue-next-pkt pkts)
   (if (and (not (empty? pkts))
            (<= NEXT-SEQ-NUM MAX-SEQ-NUM)
-           (<= (- NEXT-SEQ-NUM (car (last pkts))) WINDOW-SIZE))
+           (< (length pkts) WINDOW-SIZE))
     (cons (list (get-next-seq-num) SEND-ME) pkts)
     pkts))
 
 (define (init-pkts)
-  (reset-seq-num)
+  (set! NEXT-SEQ-NUM 0)
   (reverse (map (lambda (n) (list (get-next-seq-num) SEND-ME))
                 (range (min (add1 MAX-SEQ-NUM) WINDOW-SIZE)))))
 
@@ -47,7 +38,7 @@
   (define (make-body seq-num)
     (subbytes bstr-file
               (* seq-num PKT-BODY-SIZE)
-              (min MAX-BYTES (* (add1 seq-num) PKT-BODY-SIZE))))
+              (min (bytes-length bstr-file) (* (add1 seq-num) PKT-BODY-SIZE))))
   (define (sender pkts)
     (define (send-pkts pkts)
       (cond ((empty? pkts) '())
@@ -55,10 +46,10 @@
             (else (cons (car pkts) (send-pkts (cdr pkts))))))
     (define (send-pkt pkt)
       (send-to-client sock (make-header (first pkt) DATA) (make-body (first pkt)))
-      (list (first pkt) ACK-ME (current-seconds)))
+      (list (first pkt) ACK-ME (current-inexact-milliseconds)))
     (cond ((empty? pkts) ;; Last pkt has been acked
            (send-to-client sock (make-header 0 FIN))
-           (finalize (current-seconds)))
+           (finalize (current-inexact-milliseconds)))
           (else (listener (send-pkts pkts)))))
   (define (listener pkts)
     (match-define-values (num-bytes _ _) (udp-receive!* sock buf))
@@ -71,18 +62,18 @@
     (match-define-values (num-bytes _ _) (udp-receive!* sock buf))
     (if num-bytes
       (displayln "FIN acked successfully. Shutting down server.")
-      (cond ((< (+ TIMEOUT time) (current-seconds))
+      (cond ((< (+ TIMEOUT time) (current-inexact-milliseconds))
              (send-to-client sock (make-header 0 FIN))
-             (finalize (current-seconds)))
+             (finalize (current-inexact-milliseconds)))
             (else (finalize time)))))
   (udp-bind! sock ADDR SERVER-PORT)
   (udp-set-receive-buffer-size! sock (max (* 1024 1024) (* 2 PKT-SIZE WINDOW-SIZE)))
   (udp-receive! sock buf)
   (if (syn-bstr-pkt? buf)
     (sender (init-pkts))
-    (raise 'failed #t))) 
+    (raise "unrecognized-response" #t))) 
 
 (define bstr-file (file->bytes INPUT-FILE))
-(set-globals bstr-file)
+(set! MAX-SEQ-NUM (floor (/ (bytes-length bstr-file) PKT-BODY-SIZE)))
 (start bstr-file)
 
