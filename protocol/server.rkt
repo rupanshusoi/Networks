@@ -32,7 +32,7 @@
 (define (queue-next-pkt pkts)
   (if (and (not (empty? pkts))
            (<= NEXT-SEQ-NUM MAX-SEQ-NUM)
-           (< (length pkts) WINDOW-SIZE))
+           (<= (- NEXT-SEQ-NUM (car (last pkts))) WINDOW-SIZE))
     (cons (list (get-next-seq-num) SEND-ME) pkts)
     pkts))
 
@@ -57,8 +57,8 @@
       (send-to-client sock (make-header (first pkt) DATA) (make-body (first pkt)))
       (list (first pkt) ACK-ME (current-seconds)))
     (cond ((empty? pkts) ;; Last pkt has been acked
-            (send-to-client sock (make-header 0 FIN))
-            (finalize (current-seconds)))
+           (send-to-client sock (make-header 0 FIN))
+           (finalize (current-seconds)))
           (else (listener (send-pkts pkts)))))
   (define (listener pkts)
     (match-define-values (num-bytes _ _) (udp-receive!* sock buf))
@@ -76,7 +76,7 @@
              (finalize (current-seconds)))
             (else (finalize time)))))
   (udp-bind! sock ADDR SERVER-PORT)
-  (udp-set-receive-buffer-size! sock (* 2 PKT-SIZE WINDOW-SIZE))
+  (udp-set-receive-buffer-size! sock (max (* 1024 1024) (* 2 PKT-SIZE WINDOW-SIZE)))
   (udp-receive! sock buf)
   (if (syn-bstr-pkt? buf)
     (sender (init-pkts))

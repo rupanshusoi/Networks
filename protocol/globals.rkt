@@ -1,7 +1,7 @@
 (define ADDR "127.0.0.1")
 (define SERVER-PORT 1060)
 (define CLIENT-PORT 1061)
-(define PKT-BODY-SIZE 100)
+(define PKT-BODY-SIZE 4096)
 (define PKT-HEADER-SIZE 13)
 (define PKT-SIZE (+ PKT-HEADER-SIZE PKT-BODY-SIZE))
 (define WINDOW-SIZE 10) ;; Must be > 1
@@ -34,6 +34,7 @@
 
 (define data-bstr-pkt? (type-bstr-pkt? DATA))
 (define syn-bstr-pkt? (type-bstr-pkt? SYN))
+(define fin-bstr-pkt? (type-bstr-pkt? FIN))
 
 (define (send-to port)
   (lambda (sock header [body (make-bytes PKT-BODY-SIZE)])
