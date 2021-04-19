@@ -13,7 +13,7 @@
 
 (define (send-pkt? pkt)
     (if (or (eq? (second pkt) SEND-ME)
-            (< (+ TIMEOUT (third pkt)) (current-inexact-milliseconds)))
+            (< (+ TIMEOUT (third pkt)) (current-seconds)))
       #t
       #f))
 
@@ -46,10 +46,10 @@
             (else (cons (car pkts) (send-pkts (cdr pkts))))))
     (define (send-pkt pkt)
       (send-to-client sock (make-header (first pkt) DATA) (make-body (first pkt)))
-      (list (first pkt) ACK-ME (current-inexact-milliseconds)))
+      (list (first pkt) ACK-ME (current-seconds)))
     (cond ((empty? pkts) ;; Last pkt has been acked
            (send-to-client sock (make-header 0 FIN))
-           (finalize (current-inexact-milliseconds)))
+           (finalize (current-seconds)))
           (else (listener (send-pkts pkts)))))
   (define (listener pkts)
     (match-define-values (num-bytes _ _) (udp-receive!* sock buf))
@@ -62,9 +62,9 @@
     (match-define-values (num-bytes _ _) (udp-receive!* sock buf))
     (if num-bytes
       (displayln "FIN acked successfully. Shutting down server.")
-      (cond ((< (+ TIMEOUT time) (current-inexact-milliseconds))
+      (cond ((< (+ TIMEOUT time) (current-seconds))
              (send-to-client sock (make-header 0 FIN))
-             (finalize (current-inexact-milliseconds)))
+             (finalize (current-seconds)))
             (else (finalize time)))))
   (udp-bind! sock ADDR SERVER-PORT)
   (udp-set-receive-buffer-size! sock (max (* 1024 1024) (* 2 PKT-SIZE WINDOW-SIZE)))

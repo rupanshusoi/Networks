@@ -3,6 +3,8 @@
 (require racket/udp)
 (include "globals.rkt")
 
+(provide request-file)
+
 (define (add-pkt bstr-pkt base pkts)
   (define (bstr-pkt->pkt bstr-pkt)
     (cons (extract-seq-num bstr-pkt) (list (subbytes bstr-pkt PKT-HEADER-SIZE))))
@@ -11,11 +13,7 @@
     pkts
     (cons pkt pkts)))
 
-(define (in-window? seq-num base)
-  (and (>= seq-num base)
-       (<= seq-num (+ base (sub1 WINDOW-SIZE)))))
-
-(define (start [output-file-name OUTPUT-FILE])
+(define (request-file [output-file-name OUTPUT-FILE])
   (define sock (udp-open-socket))
   (define out-file (open-output-file output-file-name #:exists 'replace))
   (define buf (make-bytes PKT-SIZE))
@@ -43,14 +41,11 @@
                   (else (receiver base pkts))))
           (else (cond ((and (= base 0)
                             (empty? pkts)
-                            (< (+ TIMEOUT time) (current-inexact-milliseconds)))
+                            (< (+ TIMEOUT time) (current-seconds)))
                        (send-to-server sock (make-header 0 SYN))
-                       (receiver base pkts (current-inexact-milliseconds)))
+                       (receiver base pkts (current-seconds)))
                       (else (receiver base pkts time))))))
   (udp-bind! sock ADDR CLIENT-PORT)
   (udp-set-receive-buffer-size! sock (max (* 1024 1024) (* 2 PKT-SIZE WINDOW-SIZE)))
   (send-to-server sock (make-header 0 SYN))
-  (receiver 0 '()  (current-inexact-milliseconds)))
-
-(start)
-
+  (receiver 0 '()  (current-seconds)))
